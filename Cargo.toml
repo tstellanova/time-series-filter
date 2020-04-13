@@ -3,8 +3,21 @@ name = "time-series-filter"
 version = "0.1.0"
 authors = ["Todd Stellanova <tstellanova@users.noreply.github.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Filters such as exponential weighted moving average (IIR LPF)"
+license = "BSD-3-Clause"
+repository = "https://github.com/tstellanova/time-series-filter"
+categories = [
+    "science",
+    "embedded",
+    "no-std",
+]
+keywords = [
+    "EWMA",
+    "LPF",
+    "IIR",
+    "filter",
+]
+readme = "README.md"
 
 [dependencies]
 num-traits = { version = "0.2", default-features = false, features = ["libm"] }

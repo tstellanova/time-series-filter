@@ -12,4 +12,10 @@ which avoids floating point math.
 
 
 ## Examples
+
 See the tests in [lib.rs](./src/lib.rs) for examples of usage. 
+
+
+## License
+
+BSD-3-Clause, see `LICENSE` file. 

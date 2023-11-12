@@ -1,213 +1,260 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 use core::ops::Range;
 use num_traits::{Float, PrimInt};
 
 pub trait EwmaFilter<T> {
-    /// Push the next sample in the series into the filter.
-    /// Returns exponentially weighted moving average
-    fn push_sample(&mut self, new_value: T) -> T;
+  /// Push the next sample in the series into the filter.
+  /// Returns exponentially weighted moving average
+  fn push_sample(&mut self, new_value: T) -> T;
 
-    /// Returns cached exponentially weighted moving average
-    fn ewma_average(&self) -> T;
+  /// Returns cached exponentially weighted moving average
+  fn ewma_average(&self) -> T;
 
-    /// returns the local minima and maxima
-    fn local_range(&self) -> Range<T>;
+  /// returns the local minima and maxima
+  fn local_range(&self) -> Range<T>;
 }
 
 /// Implements exponential weighted moving average of time series samples,
 /// including exponentially fading minimum and maximum
 pub struct FloatSeriesEwmaFilter<T> {
-    /// number of samples that have been pushed through the filter
-    sample_count: usize,
-    /// recent minimum value (not global minimum)
-    local_min: T,
-    /// recent maximum value (not global maximum)
-    local_max: T,
-    /// exponentially weighted moving average
-    average: T,
-    /// weighting factor-- bigger alpha causes faster fade of old values
-    alpha: T,
+  /// number of samples that have been pushed through the filter
+  sample_count: usize,
+  /// recent minimum value (not global minimum)
+  local_min: T,
+  /// recent maximum value (not global maximum)
+  local_max: T,
+  /// exponentially weighted moving average
+  average: T,
+  /// weighting factor-- bigger alpha causes faster fade of old values
+  alpha: T,
 }
 
 impl<T> FloatSeriesEwmaFilter<T>
-where
+  where
     T: Float + core::ops::AddAssign,
 {
-    pub fn new(alpha: T) -> Self {
-        Self {
-            sample_count: 0,
-            alpha,
-            local_min: T::zero(),
-            local_max: T::zero(),
-            average: T::zero(),
-        }
+  pub fn new(alpha: T) -> Self {
+    Self {
+      sample_count: 0,
+      alpha,
+      local_min: T::zero(),
+      local_max: T::zero(),
+      average: T::zero(),
     }
+  }
 
-    pub fn default() -> Self {
-        Self::new(T::from(0.01).unwrap())
-    }
+  pub fn default() -> Self {
+    Self::new(T::from(0.01).unwrap())
+  }
 }
 
 impl<T> EwmaFilter<T> for FloatSeriesEwmaFilter<T>
-where
+  where
     T: Float + core::ops::AddAssign,
 {
-    /// Returns exponentially weighted moving average
-    fn push_sample(&mut self, new_value: T) -> T {
-        if self.sample_count == 0 {
-            //seed the EMWA with the initial value
-            self.local_min = new_value;
-            self.local_max = new_value;
-            self.average = new_value;
-        } else {
-            self.average += self.alpha * (new_value - self.average);
+  /// Returns exponentially weighted moving average
+  fn push_sample(&mut self, new_value: T) -> T {
+    if self.sample_count == 0 {
+      //seed the EMWA with the initial value
+      self.local_min = new_value;
+      self.local_max = new_value;
+      self.average = new_value;
+    } else {
+      self.average += self.alpha * (new_value - self.average);
 
-            // extrema fade toward average
-            if new_value > self.local_max {
-                self.local_max = new_value;
-            } else if new_value > self.average {
-                self.local_max += self.alpha * (new_value - self.local_max);
-            }
+      // extrema fade toward average
+      if new_value > self.local_max {
+        self.local_max = new_value;
+      } else if new_value > self.average {
+        self.local_max += self.alpha * (new_value - self.local_max);
+      }
 
-            if new_value < self.local_min {
-                self.local_min = new_value;
-            } else if new_value < self.average {
-                self.local_min += self.alpha * (new_value - self.local_min);
-            }
-        }
-        self.sample_count += 1;
-
-        self.average
+      if new_value < self.local_min {
+        self.local_min = new_value;
+      } else if new_value < self.average {
+        self.local_min += self.alpha * (new_value - self.local_min);
+      }
     }
+    self.sample_count += 1;
 
-    fn ewma_average(&self) -> T {
-        self.average
-    }
+    self.average
+  }
 
-    fn local_range(&self) -> Range<T> {
-        self.local_min..self.local_max
-    }
+  fn ewma_average(&self) -> T {
+    self.average
+  }
+
+  fn local_range(&self) -> Range<T> {
+    self.local_min..self.local_max
+  }
 }
 
 pub struct IntSeriesEwmaFilter<T> {
-    /// sample count
-    sample_count: usize,
+  /// sample count
+  sample_count: usize,
 
-    /// recent minimum value (not global minimum)
-    local_min: T,
-    /// recent maximum value (not global maximum)
-    local_max: T,
-    /// exponentially weighted moving average
-    average: T,
-    /// weighting factor-- bigger alpha causes faster fade of old values
-    alpha_numerator: T,
-    alpha_denominator: T,
+  /// recent minimum value (not global minimum)
+  local_min: T,
+  /// recent maximum value (not global maximum)
+  local_max: T,
+  /// exponentially weighted moving average
+  average: T,
+  /// weighting factor-- bigger alpha causes faster fade of old values
+  alpha_numerator: T,
+  alpha_denominator: T,
 }
 
 impl<T> IntSeriesEwmaFilter<T>
-where
+  where
     T: PrimInt + core::ops::AddAssign,
 {
-    pub fn new(alpha_numerator: T, alpha_denominator: T) -> Self {
-        Self {
-            sample_count: 0,
-            alpha_numerator,
-            alpha_denominator,
-            local_min: T::zero(),
-            local_max: T::zero(),
-            average: T::zero(),
-        }
+  pub fn new(alpha_numerator: T, alpha_denominator: T) -> Self {
+    Self {
+      sample_count: 0,
+      alpha_numerator,
+      alpha_denominator,
+      local_min: T::zero(),
+      local_max: T::zero(),
+      average: T::zero(),
     }
+  }
 
-    pub fn default() -> Self {
-        Self::new(T::one(), T::from(100).unwrap())
-    }
+  pub fn default() -> Self {
+    Self::new(T::one(), T::from(100).unwrap())
+  }
 }
 
 impl<T> EwmaFilter<T> for IntSeriesEwmaFilter<T>
-where
-    T: PrimInt + core::ops::AddAssign,
+  where
+    T: PrimInt + core::ops::AddAssign + core::ops::SubAssign + core::fmt::Debug
 {
-    /// Returns exponentially weighted moving average
-    fn push_sample(&mut self, new_value: T) -> T {
-        if self.sample_count == 0 {
-            //seed the EMWA with the initial value
-            self.local_min = new_value;
-            self.local_max = new_value;
-            self.average = new_value;
-        } else {
-            self.average +=
-                (self.alpha_numerator * (new_value - self.average)) / self.alpha_denominator;
-
-            // extrema fade toward average
-            if new_value > self.local_max {
-                self.local_max = new_value;
-            } else if new_value > self.average {
-                self.local_max +=
-                    (self.alpha_numerator * (new_value - self.local_max)) / self.alpha_denominator;
-            }
-
-            if new_value < self.local_min {
-                self.local_min = new_value;
-            } else if new_value < self.average {
-                self.local_min +=
-                    (self.alpha_numerator * (new_value - self.local_min)) / self.alpha_denominator;
-            }
-        }
-        self.sample_count += 1;
-
-        self.average
+  /// Returns exponentially weighted moving average
+  fn push_sample(&mut self, new_value: T) -> T {
+    if self.sample_count == 0 {
+      //seed the EMWA with the initial value
+      self.local_min = new_value;
+      self.local_max = new_value;
+      self.average = new_value;
     }
+    else {
+      if new_value >= self.average {
+        let avg_diff = new_value - self.average;
+        let incr = (self.alpha_numerator * avg_diff) / self.alpha_denominator;
+         self.average += incr;
+      }
+      else {
+        let avg_diff = self.average - new_value;
+        let incr = (self.alpha_numerator * avg_diff) / self.alpha_denominator;
+        self.average -= incr;
+      };
 
-    fn ewma_average(&self) -> T {
-        self.average
-    }
+      // extrema fade toward average
+      if new_value > self.local_max {
+        self.local_max = new_value;
+      } else if new_value > self.average {
+        self.local_max -=
+          (self.alpha_numerator * (self.local_max - new_value)) / self.alpha_denominator;
+      }
 
-    fn local_range(&self) -> Range<T> {
-        self.local_min..self.local_max
+      if new_value < self.local_min {
+        self.local_min = new_value;
+      } else if new_value < self.average {
+        self.local_min +=
+          (self.alpha_numerator * (new_value - self.local_min)) / self.alpha_denominator;
+      }
     }
+    self.sample_count += 1;
+
+    self.average
+  }
+
+  fn ewma_average(&self) -> T {
+    self.average
+  }
+
+  fn local_range(&self) -> Range<T> {
+    self.local_min..self.local_max
+  }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{EwmaFilter, FloatSeriesEwmaFilter, IntSeriesEwmaFilter};
-    use assert_approx_eq::assert_approx_eq;
+  use crate::{EwmaFilter, FloatSeriesEwmaFilter, IntSeriesEwmaFilter};
+  use assert_approx_eq::assert_approx_eq;
 
-    #[test]
-    fn float_basic() {
-        let mut tracko: FloatSeriesEwmaFilter<f32> = FloatSeriesEwmaFilter::default();
-        for i in 0..1000 {
-            tracko.push_sample(i as f32);
-        }
-        assert_approx_eq!(tracko.ewma_average(), 900.0, 1f32);
+  #[test]
+  fn test_float_basic() {
+    let mut tracko: FloatSeriesEwmaFilter<f32> = FloatSeriesEwmaFilter::default();
+    for i in 0..1000 {
+      tracko.push_sample(i as f32);
+    }
+    assert_approx_eq!(tracko.ewma_average(), 900.0, 1f32);
 
-        let mut tracko: FloatSeriesEwmaFilter<f32> = FloatSeriesEwmaFilter::new(0.01);
-        for i in 0..1000 {
-            tracko.push_sample(i as f32);
-        }
-        assert_approx_eq!(tracko.ewma_average(), 900.0, 1f32);
-        let range = tracko.local_range();
-        assert_eq!(range.end, 999.0);
-        assert_eq!(range.start, 0.0);
+    let mut tracko: FloatSeriesEwmaFilter<f32> = FloatSeriesEwmaFilter::new(0.01);
+    for i in 0..1000 {
+      tracko.push_sample(i as f32);
+    }
+    assert_approx_eq!(tracko.ewma_average(), 900.0, 1f32);
+    let range = tracko.local_range();
+    assert_eq!(range.end, 999.0);
+    assert_eq!(range.start, 0.0);
+  }
+
+  #[test]
+  fn test_integer_basic() {
+    let mut tracko: IntSeriesEwmaFilter<u32> = IntSeriesEwmaFilter::default();
+    for i in 0..1000 {
+      tracko.push_sample(i);
+    }
+    assert_eq!(tracko.ewma_average(), 900);
+
+    let mut tracko: IntSeriesEwmaFilter<u32> = IntSeriesEwmaFilter::new(1, 100);
+    for i in 0..1000 {
+      tracko.push_sample(i);
+    }
+    assert_eq!(tracko.ewma_average(), 900);
+
+    let range = tracko.local_range();
+    assert_eq!(range.end, 999);
+    assert_eq!(range.start, 0);
+  }
+
+  #[test]
+  fn test_float_up_down() {
+    let mut tracko: FloatSeriesEwmaFilter<f32> =
+      FloatSeriesEwmaFilter::new(1.0/50.0);
+
+    for _i in 0..100 {
+      tracko.push_sample(500.0);
+      tracko.push_sample(750.0);
+      tracko.push_sample(1000.0);
     }
 
-    #[test]
-    fn integer_basic() {
-        let mut tracko: IntSeriesEwmaFilter<u32> = IntSeriesEwmaFilter::default();
-        for i in 0..1000 {
-            tracko.push_sample(i);
-        }
-        assert_eq!(tracko.ewma_average(), 900);
+    assert_approx_eq!(tracko.ewma_average(), 750.0, 5.0);
 
-        let mut tracko: IntSeriesEwmaFilter<u32> = IntSeriesEwmaFilter::new(1, 100);
-        for i in 0..1000 {
-            tracko.push_sample(i);
-        }
-        assert_eq!(tracko.ewma_average(), 900);
+    let range = tracko.local_range();
+    assert_eq!(range.start, 500.0);
+    assert_eq!(range.end, 1000.0);
+  }
 
-        let range = tracko.local_range();
-        assert_eq!(range.end, 999);
-        assert_eq!(range.start, 0);
+  #[test]
+  fn test_integer_up_down() {
+    let mut tracko: IntSeriesEwmaFilter<u32> =
+      IntSeriesEwmaFilter::new(1, 50);
+
+    for _i in 0..100 {
+      tracko.push_sample(500);
+      tracko.push_sample(750);
+      tracko.push_sample(1000);
     }
+
+    assert_eq!(tracko.ewma_average(), 750);
+
+    let range = tracko.local_range();
+    assert_eq!(range.end, 1000);
+    assert_eq!(range.start, 500);
+  }
+
+
 }
